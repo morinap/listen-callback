@@ -27,6 +27,10 @@ if options[:dirs].empty?
   exit
 end
 
+# Track last event firing and don't do more than one every 15 seconds
+last_event_time = nil
+semaphore = Mutex.new
+
 uri = URI(options[:url])
 options[:ignores] = []
 listener = Listen.to(*options[:dirs], ignore: options[:ignores]) do |modified, added, removed|
@@ -34,7 +38,16 @@ listener = Listen.to(*options[:dirs], ignore: options[:ignores]) do |modified, a
   puts "Files added: #{added.inspect}" unless added.empty?
   puts "Files removed: #{removed.inspect}" unless removed.empty?
 
+  to_fire = false
+  semaphore.synchronize do
+    to_fire = last_event_time.nil? || last_event_time.to_i < Time.now.utc.to_i - 15
+  end
+
+  next unless to_fire
+  semaphore.synchronize { last_event_time = Time.now.utc }
+
   Thread.new do
+    puts "Firing callback"
     req = Net::HTTP::Post.new(uri)
     req['Content-Type'] = 'application/json'
     req.body = { modified: modified, added: added, removed: removed }.to_json
