@@ -6,4 +6,5 @@ bundle install &&\
     -i .git\
     -i tmp\
     -i log\
-    -i .vagrant
+    -i .vagrant\
+    -i spec
